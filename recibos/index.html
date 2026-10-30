@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Generador de Boletas de Pago</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: Arial, Helvetica, sans-serif; margin: 0; background: #eef1f5; color: #222; }
+  header { background: #1f3b63; color: #fff; padding: 12px 20px; }
+  header h1 { margin: 0; font-size: 20px; }
+  .layout { display: grid; grid-template-columns: 420px 1fr; gap: 16px; padding: 16px; }
+  .panel { background: #fff; border-radius: 8px; padding: 14px; box-shadow: 0 1px 4px rgba(0,0,0,.1); }
+  .panel h2 { font-size: 16px; margin: 0 0 10px; color: #1f3b63; }
+  label { display: block; font-size: 12px; margin-top: 6px; color: #555; }
+  input, select { width: 100%; padding: 6px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .conceptos .item { display: grid; grid-template-columns: 1fr 85px 105px 26px; gap: 4px; margin-top: 4px; }
+  .conceptos .item button { padding: 0; }
+  button { cursor: pointer; border: none; border-radius: 4px; padding: 8px 12px; font-size: 13px; background: #1f3b63; color: #fff; }
+  button.sec { background: #6c7a89; }
+  button.danger { background: #b23b3b; }
+  button.ok { background: #2e7d32; }
+  .actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+  .chk { display: flex; align-items: center; gap: 6px; font-size: 12px; margin-top: 6px; }
+  .chk input { width: auto; }
+
+  /* ---------- BOLETA ---------- */
+  #preview-wrap { overflow: auto; }
+  #boleta { width: 216mm; min-height: 130mm; background: #fff; padding: 12mm 14mm; margin: 0 auto; font-size: 12px; color: #000; }
+  #boleta .titulo { text-align: center; font-weight: bold; font-size: 14px; }
+  #boleta .empleador { text-align: center; font-weight: bold; font-size: 15px; margin-top: 4px; }
+  #boleta .top { display: flex; justify-content: space-between; margin-top: 10px; }
+  #boleta table { width: 100%; border-collapse: collapse; }
+  #boleta .datos td { padding: 3px 4px; }
+  #boleta .datos td.lbl { font-weight: bold; white-space: nowrap; }
+  #boleta .detalle { margin-top: 10px; }
+  #boleta .detalle th, #boleta .detalle td { border: 1px solid #000; padding: 4px 6px; }
+  #boleta .detalle th { background: #e6e6e6; }
+  #boleta .num { text-align: right; white-space: nowrap; }
+  #boleta .tot td { font-weight: bold; }
+  #boleta .pie { margin-top: 14px; text-align: center; font-weight: bold; font-size: 11px; }
+  #boleta .firmas { display: flex; justify-content: space-around; margin-top: 45px; }
+  #boleta .firmas div { border-top: 1px solid #000; width: 40%; text-align: center; padding-top: 4px; }
+
+  /* ---------- HISTORIAL ---------- */
+  .hist { grid-column: 1 / -1; }
+  .hist table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .hist th, .hist td { border-bottom: 1px solid #ddd; padding: 6px; text-align: left; }
+  .hist th { background: #f3f5f8; }
+  .hist td.num { text-align: right; }
+  .hist .acc button { padding: 4px 8px; font-size: 12px; margin-right: 3px; }
+  .toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
+  .toolbar input { width: 260px; }
+  #toast { position: fixed; bottom: 20px; right: 20px; background: #2e7d32; color: #fff; padding: 10px 16px; border-radius: 6px; display: none; }
+  @media (max-width: 1100px) { .layout { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<header><h1>Generador de Boletas de Depósito y Constancia de Recepción de Pago</h1></header>
+
+<div class="layout">
+  <!-- FORMULARIO -->
+  <div class="panel">
+    <h2>Datos de la boleta</h2>
+    <input type="hidden" id="recId">
+    <div class="row2">
+      <div><label>Empleador</label><input id="empleador" value="DR. ALEJANDRO SOLE"></div>
+      <div><label>Correlativo</label><input id="correlativo" type="number"></div>
+    </div>
+    <div class="row2">
+      <div><label>Lugar</label><input id="lugar" value="Guatemala"></div>
+      <div><label>Fecha de emisión</label><input id="fecha" type="date"></div>
+    </div>
+    <div class="row2">
+      <div><label>No. de empleado</label><input id="noEmpleado" value="0"></div>
+      <div><label>Puesto</label><input id="puesto" value="ASISTENTE"></div>
+    </div>
+    <label>Nombre</label><input id="nombre" value="FLORES CHÚN. VIVIAN YANETH">
+    <div class="row2">
+      <div><label>NIT</label><input id="nit" value="83397221"></div>
+      <div><label>Afiliación IGSS</label><input id="igss" value="2304765700101"></div>
+    </div>
+    <div class="row2">
+      <div><label>Periodo del</label><input id="periodoDel" type="date"></div>
+      <div><label>Periodo al</label><input id="periodoAl" type="date"></div>
+    </div>
+    <div class="row2">
+      <div><label>Sueldo mensual</label><input id="sueldo" type="number" step="0.01" value="6000"></div>
+      <div><label>Días</label><input id="dias" type="number" value="15"></div>
+    </div>
+    <div class="row2">
+      <div><label>Fecha de pago</label><input id="fechaPago" type="date"></div>
+      <div><label>Bonificación 78-89 (mensual)</label><input id="bonif" type="number" step="0.01" value="250"></div>
+    </div>
+    <label class="chk"><input type="checkbox" id="autoCalc" checked> Calcular automáticamente Anticipo, Bonificación e IGSS (4.83%)</label>
+
+    <h2 style="margin-top:14px">Detalle del pago</h2>
+    <div class="conceptos" id="conceptos"></div>
+    <div class="actions">
+      <button class="sec" onclick="addConcepto('', 0, 'D')">+ Devengado</button>
+      <button class="sec" onclick="addConcepto('', 0, 'X')">+ Descuento</button>
+    </div>
+    <label>Texto al pie</label>
+    <input id="pie" value="EL VALOR LIQUIDO HA SIDO DEPOSITADO A TRAVEZ DE TRANSFERENCIA BANCARIA EN LINEA">
+
+    <div class="actions">
+      <button class="ok" onclick="guardar()">💾 Guardar</button>
+      <button onclick="descargarPDF()">📄 Guardar y descargar PDF</button>
+      <button class="sec" onclick="nuevo()">Nuevo</button>
+    </div>
+  </div>
+
+  <!-- VISTA PREVIA -->
+  <div class="panel" id="preview-wrap">
+    <h2>Vista previa</h2>
+    <div id="boleta"></div>
+  </div>
+
+  <!-- HISTORIAL -->
+  <div class="panel hist">
+    <h2>Historial de boletas (base de datos local)</h2>
+    <div class="toolbar">
+      <input id="buscar" placeholder="Buscar por nombre, correlativo o fecha..." oninput="listar()">
+      <button class="sec" onclick="exportar()">⬇ Exportar respaldo (JSON)</button>
+      <button class="sec" onclick="document.getElementById('fileImp').click()">⬆ Importar respaldo</button>
+      <button class="sec" onclick="exportarCSV()">⬇ Exportar CSV</button>
+      <input type="file" id="fileImp" accept=".json" style="display:none" onchange="importar(event)">
+    </div>
+    <table>
+      <thead><tr><th>Correlativo</th><th>Fecha</th><th>Nombre</th><th>Periodo</th><th class="num">Devengados</th><th class="num">Descuentos</th><th class="num">Neto</th><th>Acciones</th></tr></thead>
+      <tbody id="tbHist"></tbody>
+    </table>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script>
+/* ================= Utilidades ================= */
+const $ = id => document.getElementById(id);
+const r2 = n => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
+const fmt = n => Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+const parseD = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const dmy = s => s ? s.split('-').reverse().join('/') : '';
+const fechaLarga = s => {
+  if (!s) return '';
+  return parseD(s).toLocaleDateString('es-GT', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
+};
+const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+function toast(msg, color = '#2e7d32') { const t = $('toast'); t.textContent = msg; t.style.background = color; t.style.display = 'block'; setTimeout(() => t.style.display = 'none', 2500); }
+
+/* ================= Base de datos (IndexedDB) ================= */
+let db;
+function abrirDB() {
+  return new Promise((res, rej) => {
+    const req = indexedDB.open('boletasDB', 1);
+    req.onupgradeneeded = e => {
+      const s = e.target.result.createObjectStore('boletas', { keyPath: 'id', autoIncrement: true });
+      s.createIndex('correlativo', 'correlativo');
+    };
+    req.onsuccess = e => { db = e.target.result; res(); };
+    req.onerror = e => rej(e);
+  });
+}
+function tx(mode = 'readonly') { return db.transaction('boletas', mode).objectStore('boletas'); }
+const dbAll = () => new Promise(r => { const q = tx().getAll(); q.onsuccess = () => r(q.result); });
+const dbGet = id => new Promise(r => { const q = tx().get(id); q.onsuccess = () => r(q.result); });
+const dbPut = o => new Promise((r, j) => { const q = tx('readwrite').put(o); q.onsuccess = () => r(q.result); q.onerror = j; });
+const dbDel = id => new Promise(r => { const q = tx('readwrite').delete(id); q.onsuccess = () => r(); });
+
+/* ================= Conceptos ================= */
+function addConcepto(desc, monto, tipo, auto = '') {
+  const div = document.createElement('div');
+  div.className = 'item';
+  div.dataset.auto = auto;
+  div.innerHTML = `
+    <input class="c-desc" value="${esc(desc)}" placeholder="Concepto">
+    <input class="c-monto" type="number" step="0.01" value="${monto}">
+    <select class="c-tipo"><option value="D">Devengado</option><option value="X">Descuento</option></select>
+    <button class="danger" title="Quitar">✕</button>`;
+  div.querySelector('.c-tipo').value = tipo;
+  div.querySelector('button').onclick = () => { div.remove(); render(); };
+  div.querySelectorAll('input,select').forEach(el => el.addEventListener('input', () => {
+    if (el.classList.contains('c-monto')) div.dataset.auto = '';  // edición manual desactiva el cálculo de esta fila
+    render();
+  }));
+  $('conceptos').appendChild(div);
+  render();
+}
+function getConceptos() {
+  return [...document.querySelectorAll('#conceptos .item')].map(d => ({
+    descripcion: d.querySelector('.c-desc').value,
+    monto: r2(d.querySelector('.c-monto').value),
+    tipo: d.querySelector('.c-tipo').value,
+    auto: d.dataset.auto || ''
+  }));
+}
+function setConceptos(list) {
+  $('conceptos').innerHTML = '';
+  list.forEach(c => addConcepto(c.descripcion, c.monto, c.tipo, c.auto || ''));
+}
+function autoCalcular() {
+  if (!$('autoCalc').checked) return;
+  const sueldo = Number($('sueldo').value) || 0, bonif = Number($('bonif').value) || 0;
+  const valores = {
+    anticipo: r2(sueldo / 2 - bonif),
+    bonif: r2(bonif),
+    igss: r2((sueldo - bonif) * 0.0483)
+  };
+  document.querySelectorAll('#conceptos .item').forEach(d => {
+    if (d.dataset.auto && valores[d.dataset.auto] !== undefined) d.querySelector('.c-monto').value = valores[d.dataset.auto];
+  });
+}
+
+/* ================= Datos y vista previa ================= */
+function getData() {
+  const conceptos = getConceptos();
+  const dev = r2(conceptos.filter(c => c.tipo === 'D').reduce((a, c) => a + c.monto, 0));
+  const des = r2(conceptos.filter(c => c.tipo === 'X').reduce((a, c) => a + c.monto, 0));
+  return {
+    id: $('recId').value ? Number($('recId').value) : undefined,
+    empleador: $('empleador').value, correlativo: Number($('correlativo').value) || 0,
+    lugar: $('lugar').value, fecha: $('fecha').value,
+    noEmpleado: $('noEmpleado').value, nombre: $('nombre').value, puesto: $('puesto').value,
+    nit: $('nit').value, igss: $('igss').value,
+    periodoDel: $('periodoDel').value, periodoAl: $('periodoAl').value,
+    sueldo: r2($('sueldo').value), dias: $('dias').value, bonif: r2($('bonif').value),
+    fechaPago: $('fechaPago').value, autoCalc: $('autoCalc').checked, pie: $('pie').value,
+    conceptos, totalDevengado: dev, totalDescuento: des, neto: r2(dev - des)
+  };
+}
+function setData(d) {
+  ['empleador','correlativo','lugar','fecha','noEmpleado','nombre','puesto','nit','igss','periodoDel','periodoAl','sueldo','dias','bonif','fechaPago','pie']
+    .forEach(k => $(k).value = d[k] ?? '');
+  $('recId').value = d.id ?? '';
+  $('autoCalc').checked = !!d.autoCalc;
+  setConceptos(d.conceptos || []);
+  render();
+}
+function htmlBoleta(d) {
+  const filas = d.conceptos.map(c => `<tr><td>${esc(c.descripcion)}</td>
+      <td class="num">${c.tipo === 'D' ? fmt(c.monto) : ''}</td>
+      <td class="num">${c.tipo === 'X' ? fmt(c.monto) : ''}</td></tr>`).join('');
+  return `
+    <div class="titulo">BOLETA DE DEPOSITO Y CONSTANCIA DE RECEPCION DE PAGO</div>
+    <div class="empleador">${esc(d.empleador)}</div>
+    <div class="top"><div>${esc(d.lugar)}, ${esc(fechaLarga(d.fecha))}</div><div><b>No.</b> ${esc(d.correlativo)}</div></div>
+    <table class="datos" style="margin-top:8px">
+      <tr><td class="lbl">No. de empleado:</td><td>${esc(d.noEmpleado)}</td>
+          <td class="lbl">Periodo:</td><td>Del ${dmy(d.periodoDel)} Al ${dmy(d.periodoAl)}</td></tr>
+      <tr><td class="lbl">Nombre:</td><td>${esc(d.nombre)}</td>
+          <td class="lbl">Puesto:</td><td>${esc(d.puesto)}</td></tr>
+      <tr><td class="lbl">NIT:</td><td>${esc(d.nit)}</td>
+          <td class="lbl">Días:</td><td>${esc(d.dias)}</td></tr>
+      <tr><td class="lbl">Afiliación IGSS:</td><td>${esc(d.igss)}</td>
+          <td class="lbl">Sueldo:</td><td>${fmt(d.sueldo)}</td></tr>
+      <tr><td class="lbl">FECHA DE PAGO:</td><td>${dmy(d.fechaPago)}</td><td></td><td></td></tr>
+    </table>
+    <table class="detalle">
+      <thead><tr><th style="text-align:left">Detalle del Pago</th><th style="width:22%">Devengados</th><th style="width:22%">Descuentos</th></tr></thead>
+      <tbody>${filas}
+        <tr class="tot"><td>Totales Renta neta acreditada y descuentos</td><td class="num">${fmt(d.totalDevengado)}</td><td class="num">${fmt(d.totalDescuento)}</td></tr>
+        <tr class="tot"><td>Neto a Recibir</td><td></td><td class="num">${fmt(d.neto)}</td></tr>
+      </tbody>
+    </table>
+    <div class="pie">${esc(d.pie)}</div>
+    <div class="firmas"><div>Firma Empleador</div><div>Firma Empleado</div></div>`;
+}
+function render() { autoCalcular(); $('boleta').innerHTML = htmlBoleta(getData()); }
+
+/* ================= Acciones ================= */
+async function siguienteCorrelativo() {
+  const all = await dbAll();
+  return all.length ? Math.max(...all.map(b => Number(b.correlativo) || 0)) + 1 : 2610;
+}
+async function guardar(silencioso = false) {
+  const d = getData();
+  if (!d.nombre.trim() || !d.fecha) { toast('Nombre y fecha son obligatorios', '#b23b3b'); return null; }
+  const dup = (await dbAll()).find(b => b.correlativo === d.correlativo && b.id !== d.id);
+  if (dup && !confirm(`El correlativo ${d.correlativo} ya existe. ¿Guardar de todas formas?`)) return null;
+  if (d.id === undefined) delete d.id;
+  d.actualizado = new Date().toISOString();
+  const id = await dbPut(d);
+  $('recId').value = id;
+  if (!silencioso) toast('Boleta guardada');
+  listar();
+  return { ...d, id };
+}
+function nombreArchivo(d) {
+  const [y, m, dd] = (d.fecha || '').split('-');
+  const parts = d.nombre.replace(/[.,]/g, ' ').trim().split(/\s+/);
+  const primerNombre = (parts.length > 2 ? parts[2] : parts[0] || 'RECIBO').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  return `${dd}${m}${y}_${primerNombre.toUpperCase()}.pdf`;
+}
+function generarPDF(d) {
+  if (typeof html2pdf === 'undefined') {
+    toast('No se pudo cargar la librería PDF (requiere internet)', '#b23b3b');
+    return Promise.resolve();
+  }
+  const el = document.createElement('div');
+  el.id = 'boleta';
+  el.innerHTML = htmlBoleta(d);
+  return html2pdf().set({
+    margin: 0, filename: nombreArchivo(d),
+    image: { type: 'jpeg', quality: 0.98 },
+    html2canvas: { scale: 2 },
+    jsPDF: { unit: 'mm', format: 'letter', orientation: 'portrait' }
+  }).from(el).save();
+}
+async function descargarPDF() {
+  const d = await guardar(true);
+  if (!d) return;
+  await generarPDF(d);
+  toast('Boleta guardada y PDF generado');
+}
+async function nuevo() {
+  const actual = getData();
+  setData({ ...actual, id: undefined, correlativo: await siguienteCorrelativo(), fecha: iso(new Date()), fechaPago: iso(new Date()) });
+}
+async function listar() {
+  const q = $('buscar').value.toLowerCase();
+  const all = (await dbAll()).sort((a, b) => b.correlativo - a.correlativo)
+    .filter(b => !q || [b.nombre, b.correlativo, dmy(b.fecha), b.fecha].join(' ').toLowerCase().includes(q));
+  $('tbHist').innerHTML = all.map(b => `<tr>
+      <td>${esc(b.correlativo)}</td><td>${dmy(b.fecha)}</td><td>${esc(b.nombre)}</td>
+      <td>${dmy(b.periodoDel)} - ${dmy(b.periodoAl)}</td>
+      <td class="num">${fmt(b.totalDevengado)}</td><td class="num">${fmt(b.totalDescuento)}</td><td class="num"><b>${fmt(b.neto)}</b></td>
+      <td class="acc">
+        <button onclick="editar(${b.id})">Abrir</button>
+        <button class="sec" onclick="duplicar(${b.id})">Duplicar</button>
+        <button class="ok" onclick="pdfDe(${b.id})">PDF</button>
+        <button class="danger" onclick="eliminar(${b.id})">Eliminar</button>
+      </td></tr>`).join('') || '<tr><td colspan="8" style="text-align:center;color:#888">Sin registros</td></tr>';
+}
+async function editar(id) { setData(await dbGet(id)); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+async function duplicar(id) {
+  const d = await dbGet(id);
+  setData({ ...d, id: undefined, correlativo: await siguienteCorrelativo() });
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  toast('Copia lista: ajuste los datos y guarde');
+}
+async function pdfDe(id) { await generarPDF(await dbGet(id)); }
+async function eliminar(id) {
+  if (!confirm('¿Eliminar esta boleta?')) return;
+  await dbDel(id);
+  if (Number($('recId').value) === id) $('recId').value = '';
+  listar(); toast('Boleta eliminada', '#b23b3b');
+}
+function descargarArchivo(contenido, nombre, tipo) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([contenido], { type: tipo }));
+  a.download = nombre; a.click(); URL.revokeObjectURL(a.href);
+}
+async function exportar() {
+  descargarArchivo(JSON.stringify(await dbAll(), null, 2), `respaldo_boletas_${iso(new Date())}.json`, 'application/json');
+}
+async function exportarCSV() {
+  const all = await dbAll();
+  const cols = ['correlativo','fecha','nombre','puesto','nit','igss','periodoDel','periodoAl','sueldo','dias','fechaPago','totalDevengado','totalDescuento','neto'];
+  const csv = [cols.join(',')].concat(all.map(b => cols.map(c => `"${String(b[c] ?? '').replace(/"/g, '""')}"`).join(','))).join('\n');
+  descargarArchivo('\ufeff' + csv, `boletas_${iso(new Date())}.csv`, 'text/csv');
+}
+async function importar(e) {
+  const f = e.target.files[0]; if (!f) return;
+  try {
+    const data = JSON.parse(await f.text());
+    if (!Array.isArray(data)) throw new Error();
+    for (const b of data) { delete b.id; await dbPut(b); }
+    toast(`${data.length} boletas importadas`); listar();
+  } catch { toast('Archivo inválido', '#b23b3b'); }
+  e.target.value = '';
+}
+
+/* ================= Inicio ================= */
+(async function init() {
+  await abrirDB();
+  $('fecha').value = '2026-10-15';
+  $('fechaPago').value = '2026-10-15';
+  $('periodoDel').value = '2026-10-01';
+  $('periodoAl').value = '2026-10-31';
+  $('correlativo').value = await siguienteCorrelativo();
+  setConceptos([
+    { descripcion: 'Anticipo Quincena', monto: 2750, tipo: 'D', auto: 'anticipo' },
+    { descripcion: 'Bonificación 78-89', monto: 250, tipo: 'D', auto: 'bonif' },
+    { descripcion: 'Descuento Laboral IGSS', monto: 277.73, tipo: 'X', auto: 'igss' },
+    { descripcion: 'Retencion Asalariados', monto: 59.03, tipo: 'X' }
+  ]);
+  $('autoCalc').checked = true;
+  document.querySelectorAll('.panel input, .panel select').forEach(el => {
+    if (!el.closest('#conceptos') && el.id !== 'buscar' && el.id !== 'fileImp') el.addEventListener('input', render);
+  });
+  render(); listar();
+})();
+</script>
+</body>
+</html>
